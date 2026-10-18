@@ -3,31 +3,56 @@ package com.example.tenantmanagementsystem
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.tenantmanagementsystem.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+
+    // The most recently saved tenant. Lost on rotation unless we save it
     private var lastTenant: Tenant? = null
+
+    // Task 4: how many times SAVE has succeeded. Also lost unless we save it
+    private var saveCount = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onCreate")
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Task 2: read the email sent from LoginActivity and welcome the user
+        // RESTORE STATE (only after a rotation)
+        if (savedInstanceState != null) {
+            val name = savedInstanceState.getString("tenant_name")
+            val phone = savedInstanceState.getString("tenant_phone")
+            val rent = savedInstanceState.getString("tenant_rent")
+
+            if (name != null && phone != null && rent != null) {
+                val tenant = Tenant(name, phone, rent)
+                lastTenant = tenant
+                binding.tenant = tenant
+            }
+
+            // Task 4: read the count back, with 0 as the default
+            saveCount = savedInstanceState.getInt("save_count", 0)
+            Toast.makeText(this, "SAVE was tapped $saveCount times", Toast.LENGTH_SHORT).show()
+        }
+
+        // Welcome the user, only on a fresh open (not after a rotation)
         val email = intent.getStringExtra("EMAIL")
-        if (email != null) {
+        if (email != null && savedInstanceState == null) {
             Toast.makeText(this, "Logged in as $email", Toast.LENGTH_SHORT).show()
         }
 
+        // SAVE button
         binding.saveButton.setOnClickListener {
             val name = binding.tenantNameEditText.text.toString()
             val phone = binding.phoneEditText.text.toString()
             val rent = binding.rentEditText.text.toString()
 
-            // Task 3: validate all three fields
             var valid = true
             if (name.isEmpty()) {
                 binding.tenantNameEditText.error = "Required"
@@ -46,8 +71,11 @@ class MainActivity : AppCompatActivity() {
             val tenant = Tenant(name, phone, rent)
             binding.tenant = tenant
             lastTenant = tenant
+
+            saveCount++   // Task 4: count this save
         }
 
+        // CALL TENANT button (implicit Intent)
         binding.callButton.setOnClickListener {
             val tenant = lastTenant
             if (tenant == null) {
@@ -59,7 +87,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // Task 1: share the saved tenant with another app
+        // SHARE button (implicit Intent)
         binding.shareButton.setOnClickListener {
             val tenant = lastTenant
             if (tenant == null) {
@@ -72,5 +100,51 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra(Intent.EXTRA_TEXT, tenant.summary())
             startActivity(Intent.createChooser(intent, "Share tenant"))
         }
+    }
+
+    // SAVE STATE (just before the Activity is destroyed)
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onSaveInstanceState")
+
+        val tenant = lastTenant
+        if (tenant != null) {
+            outState.putString("tenant_name", tenant.name)
+            outState.putString("tenant_phone", tenant.phone)
+            outState.putString("tenant_rent", tenant.rent)
+        }
+
+        // Task 4: an Int goes in with putInt
+        outState.putInt("save_count", saveCount)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onStart")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onResume")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onPause")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onStop")
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onRestart")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("TENANT_LIFECYCLE", "MainActivity: onDestroy")
     }
 }
