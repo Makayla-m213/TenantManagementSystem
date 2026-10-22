@@ -1,21 +1,25 @@
 package com.example.tenantmanagementsystem
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
+import android.view.Menu
+import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
+import androidx.navigation.NavController
+import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.navigation.ui.navigateUp
+import androidx.navigation.ui.onNavDestinationSelected
+import androidx.navigation.ui.setupActionBarWithNavController
+import androidx.navigation.ui.setupWithNavController
 import com.example.tenantmanagementsystem.databinding.ActivityMainBinding
+import com.example.tenantmanagementsystem.databinding.NavHeaderBinding
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-
-    // The most recently saved tenant. Lost on rotation unless we save it
-    private var lastTenant: Tenant? = null
-
-    // Task 4: how many times SAVE has succeeded. Also lost unless we save it
-    private var saveCount = 0
+    private lateinit var navController: NavController
+    private lateinit var appBarConfiguration: AppBarConfiguration
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,98 +28,65 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // RESTORE STATE (only after a rotation)
-        if (savedInstanceState != null) {
-            val name = savedInstanceState.getString("tenant_name")
-            val phone = savedInstanceState.getString("tenant_phone")
-            val rent = savedInstanceState.getString("tenant_rent")
+        setSupportActionBar(binding.toolbar)
 
-            if (name != null && phone != null && rent != null) {
-                val tenant = Tenant(name, phone, rent)
-                lastTenant = tenant
-                binding.tenant = tenant
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        navController = navHostFragment.navController
+
+        appBarConfiguration = AppBarConfiguration(
+            setOf(
+                R.id.dashboardFragment,
+                R.id.addTenantFragment,
+                R.id.viewTenantsFragment,
+                R.id.aboutFragment
+            ),
+            binding.drawerLayout
+        )
+
+        setupActionBarWithNavController(navController, appBarConfiguration)
+        binding.navView.setupWithNavController(navController)
+
+        // Task 4: our own listener, set AFTER setupWithNavController
+        // (it replaces the default one, so we handle navigation ourselves)
+        binding.navView.setNavigationItemSelectedListener { item ->
+            if (item.itemId == R.id.drawer_logout) {
+                logout()
+                true
+            } else {
+                val handled = item.onNavDestinationSelected(navController)
+                binding.drawerLayout.closeDrawers()
+                handled
             }
-
-            // Task 4: read the count back, with 0 as the default
-            saveCount = savedInstanceState.getInt("save_count", 0)
-            Toast.makeText(this, "SAVE was tapped $saveCount times", Toast.LENGTH_SHORT).show()
         }
 
-        // Welcome the user, only on a fresh open (not after a rotation)
         val email = intent.getStringExtra("EMAIL")
-        if (email != null && savedInstanceState == null) {
-            Toast.makeText(this, "Logged in as $email", Toast.LENGTH_SHORT).show()
-        }
-
-        // SAVE button
-        binding.saveButton.setOnClickListener {
-            val name = binding.tenantNameEditText.text.toString()
-            val phone = binding.phoneEditText.text.toString()
-            val rent = binding.rentEditText.text.toString()
-
-            var valid = true
-            if (name.isEmpty()) {
-                binding.tenantNameEditText.error = "Required"
-                valid = false
-            }
-            if (phone.isEmpty()) {
-                binding.phoneEditText.error = "Required"
-                valid = false
-            }
-            if (rent.isEmpty()) {
-                binding.rentEditText.error = "Required"
-                valid = false
-            }
-            if (!valid) return@setOnClickListener
-
-            val tenant = Tenant(name, phone, rent)
-            binding.tenant = tenant
-            lastTenant = tenant
-
-            saveCount++   // Task 4: count this save
-        }
-
-        // CALL TENANT button (implicit Intent)
-        binding.callButton.setOnClickListener {
-            val tenant = lastTenant
-            if (tenant == null) {
-                Toast.makeText(this, "Save a tenant first", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${tenant.phone}"))
-            startActivity(intent)
-        }
-
-        // SHARE button (implicit Intent)
-        binding.shareButton.setOnClickListener {
-            val tenant = lastTenant
-            if (tenant == null) {
-                Toast.makeText(this, "Save a tenant first", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val intent = Intent(Intent.ACTION_SEND)
-            intent.type = "text/plain"
-            intent.putExtra(Intent.EXTRA_TEXT, tenant.summary())
-            startActivity(Intent.createChooser(intent, "Share tenant"))
-        }
+        val headerBinding = NavHeaderBinding.bind(binding.navView.getHeaderView(0))
+        headerBinding.headerEmailTextView.text = email ?: "Signed in"
     }
 
-    // SAVE STATE (just before the Activity is destroyed)
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        Log.d("TENANT_LIFECYCLE", "MainActivity: onSaveInstanceState")
+    // Shared by the drawer and the options menu
+    private fun logout() {
+        val intent = Intent(this, LoginActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+    }
 
-        val tenant = lastTenant
-        if (tenant != null) {
-            outState.putString("tenant_name", tenant.name)
-            outState.putString("tenant_phone", tenant.phone)
-            outState.putString("tenant_rent", tenant.rent)
+    override fun onSupportNavigateUp(): Boolean {
+        return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_logout) {
+            logout()
+            return true
         }
-
-        // Task 4: an Int goes in with putInt
-        outState.putInt("save_count", saveCount)
+        return item.onNavDestinationSelected(navController) || super.onOptionsItemSelected(item)
     }
 
     override fun onStart() {
